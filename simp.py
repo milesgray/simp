@@ -3,6 +3,7 @@ pyflann needs to be converted from python2 to python3. Here is an example if you
 `pip install 2to3`
 `2to3 -w ~/anaconda3/envs/pytorch_p36/lib/python3.6/site-packages/pyflann`
 """
+from collections import defaultdict
 import time
 import warnings
 import argparse
@@ -40,7 +41,7 @@ def get_adj(mat, dist_metric='cosine', flann_cutoff=100000, log=print):
     col = rank
     A = sparse.csr_matrix((data, (row, col)), shape=(size, size))
     A = A + sparse.eye(size, dtype=np.float32, format='csr')
-    A = np.dot(A, A.T).tolil()
+    A = A.dot(A.T).tolil()
     A.setdiag(0)
     return A
 
@@ -55,3 +56,23 @@ def cluster(data, dist_metric='cosine', min_sim=None, flann_cutoff=100000, verbo
     num_clust, clusters = get_clusters(get_adj(data, dist_metric=dist_metric, flann_cutoff=flann_cutoff), min_sim)
     if verbose: log(f'{num_clust} clusters')
     return clusters
+
+def to_dict(cluster_indexes, data):
+    """
+        Combines the output of `cluster` with the data which was partitioned and returns a dictionary where each key is a partition and each value is the list of embeddings belonging to that cluster.
+    """
+    clusters = defaultdict(list)
+    for j, i in enumerate(cluster_indexes):
+        clusters[i].append(data[j])
+    return clusters
+
+def to_df(clusters, data, pd):
+    """
+        Pass your pandas import into the 3rd parameter slot.  This lets this library not have a hard dependency on Pandas while still offering this convenience method.
+    """
+    tidy = []
+    for c in clusters.items():
+        cluster_name = c[0]
+        tidy += [(cluster_name, i) for i in c[1]]
+    cluster_df = pd.DataFrame(tidy, columns=["clustered", "original"])
+    return cluster_df
